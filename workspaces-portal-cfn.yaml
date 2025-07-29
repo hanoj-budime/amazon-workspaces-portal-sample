@@ -46,7 +46,13 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Ref S3BucketName
-      AccessControl: "PublicRead"
+      # AccessControl: "PublicRead"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false   # if you intend to allow public bucket policy
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerPreferred
       WebsiteConfiguration: 
         IndexDocument: "index.html"
 
@@ -244,17 +250,6 @@ Resources:
       Targets:
         - Arn: !GetAtt LambdaFunctionPortalReaper.Arn
           Id: "InstanceReaper"
-
-  DiscoverEventPermission:
-    Type: "AWS::Lambda::Permission"
-    DependsOn:
-      - LambdaFunctionFindInstances
-      - DiscoverEvent
-    Properties:
-      FunctionName: !Ref LambdaFunctionFindInstances
-      Action: "lambda:InvokeFunction"
-      Principal: "events.amazonaws.com"
-      SourceArn: !GetAtt DiscoverEvent.Arn
 
   UserPool:
     Type: "AWS::Cognito::UserPool"
