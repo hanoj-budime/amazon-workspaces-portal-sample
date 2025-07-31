@@ -1,49 +1,25 @@
 AWSTemplateFormatVersion: 2010-09-09
 
-#
-# Copyright 2024 Amazon.com, Inc. or its affiliates. All Rights Reserved.
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy of this
-# software and associated documentation files (the "Software"), to deal in the Software
-# without restriction, including without limitation the rights to use, copy, modify,
-# merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
-# permit persons to whom the Software is furnished to do so.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
-# INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-# PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
-# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-#
-
 Description: >
   Template for the parts of the Workspaces portal that can be automated.
 
 Parameters:
   ClientName:
     Type: String
-    Description: Name of the customer that will helps in identifying which customer
+    Description: Name of the customer to help identify resources
     Default: aws-samples
   EnvironmentName:
     Type: String
-    Description: Name of the environment that will helps in identifying which environment
+    Description: Name of the environment to help identify resources
     Default: test-113
   ServiceName:
     Type: String
-    Description: Name of the service that will helps in identifying resource name
+    Description: Name of the service to help identify resources
     Default: workspaces-portal
-  S3BucketName:
+  S3CodeBucket:
     Type: String
-    Description: Name of the S3 bucket that will host the single-page web application
-    Default: aws-samples-workspaces-portal
-  DDBTable:
-    Type: String
-    Description: DynamoDB table to create
-    Default: aws-samples-workspaces-portal
-  UniqueSuffix:
-    Type: String
-    Description: Optional suffix to make identifying stack resources easier and to avoid conflicts
+    Description: S3 bucket containing Lambda function code
+    Default: xcafockufhle
 
 Outputs:
   APIGatewayId:
@@ -57,11 +33,12 @@ Resources:
   S3Bucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Ref S3BucketName
-      # AccessControl: "PublicRead"
+      BucketName: !Sub ${ClientName}-${ServiceName}-${EnvironmentName}
       PublicAccessBlockConfiguration:
-        BlockPublicAcls: false
-        BlockPublicPolicy: false # if you intend to allow public bucket policy
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
       OwnershipControls:
         Rules:
           - ObjectOwnership: BucketOwnerPreferred
@@ -77,21 +54,19 @@ Resources:
           - Action: s3:GetObject
             Principal: "*"
             Effect: Allow
-            Resource: !Sub arn:aws:s3:::${S3BucketName}/*
+            Resource: !Sub arn:aws:s3:::${S3Bucket}/*
 
   DynamoDBTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Ref DDBTable
+      TableName: !Sub ${ClientName}-${ServiceName}-${EnvironmentName}
       AttributeDefinitions:
         - AttributeName: WorkspaceId
           AttributeType: S
       KeySchema:
         - AttributeName: WorkspaceId
           KeyType: HASH
-      ProvisionedThroughput:
-        ReadCapacityUnits: 10
-        WriteCapacityUnits: 10
+      BillingMode: PAY_PER_REQUEST
 
   LambdaRole:
     Type: AWS::IAM::Role
@@ -119,7 +94,7 @@ Resources:
                   - dynamodb:PutItem
                   - dynamodb:DeleteItem
                 Effect: Allow
-                Resource: !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DDBTable}
+                Resource: !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${DynamoDBTable}
         - PolicyName: WorkspacesPolicy
           PolicyDocument:
             Version: 2012-10-17
@@ -148,28 +123,26 @@ Resources:
     Type: AWS::Lambda::Function
     DependsOn: LambdaRole
     Properties:
-      FunctionName: !Sub WorkspacesPortalFindInstances${UniqueSuffix}
+      FunctionName: !Sub ${ClientName}-${ServiceName}-FindInstances-${EnvironmentName}
       Code:
-        S3Bucket: !Sub xcafockufhle-${AWS::Region}
+        S3Bucket: !Sub ${S3CodeBucket}-${AWS::Region}
         S3Key: lambda_workspaces_import.zip
-      Description:
-        Workspaces portal function to find all Workspaces instances in all
-        applicable regions.
+      Description: Workspaces portal function to find all Workspaces instances in all applicable regions.
       Handler: lambda_workspaces_import.lambda_handler
       Role: !GetAtt LambdaRole.Arn
       Runtime: python3.13
       Timeout: 300
       Environment:
         Variables:
-          DynamoDBTableName: !Ref DDBTable
+          DynamoDBTableName: !Ref DynamoDBTable
 
   LambdaFunctionPortalActions:
     Type: AWS::Lambda::Function
     DependsOn: LambdaRole
     Properties:
-      FunctionName: !Sub WorkspacesPortalActions${UniqueSuffix}
+      FunctionName: !Sub ${ClientName}-${ServiceName}-Actions-${EnvironmentName}
       Code:
-        S3Bucket: !Sub xcafockufhle-${AWS::Region}
+        S3Bucket: !Sub ${S3CodeBucket}-${AWS::Region}
         S3Key: lambda_workspaces_actions.zip
       Description: Workspaces portal function to perform actions as called by API Gateway.
       Handler: lambda_workspaces_actions.lambda_handler
@@ -178,51 +151,47 @@ Resources:
       Timeout: 10
       Environment:
         Variables:
-          DynamoDBTableName: !Ref DDBTable
+          DynamoDBTableName: !Ref DynamoDBTable
 
   LambdaFunctionListInstances:
     Type: AWS::Lambda::Function
     DependsOn: LambdaRole
     Properties:
-      FunctionName: !Sub WorkspacesPortalListInstances${UniqueSuffix}
+      FunctionName: !Sub ${ClientName}-${ServiceName}-ListInstances-${EnvironmentName}
       Code:
-        S3Bucket: !Sub xcafockufhle-${AWS::Region}
+        S3Bucket: !Sub ${S3CodeBucket}-${AWS::Region}
         S3Key: lambda_workspaces_list_instances.zip
-      Description:
-        Workspaces portal function to return a list of Workspaces instances
-        when called by API Gateway.
+      Description: Workspaces portal function to return a list of Workspaces instances when called by API Gateway.
       Handler: lambda_workspaces_list_instances.lambda_handler
       Role: !GetAtt LambdaRole.Arn
       Runtime: python3.13
       Timeout: 10
       Environment:
         Variables:
-          DynamoDBTableName: !Ref DDBTable
+          DynamoDBTableName: !Ref DynamoDBTable
 
   LambdaFunctionPortalReaper:
     Type: AWS::Lambda::Function
     DependsOn: LambdaRole
     Properties:
-      FunctionName: !Sub WorkspacesPortalReaper${UniqueSuffix}
+      FunctionName: !Sub ${ClientName}-${ServiceName}-Reaper-${EnvironmentName}
       Code:
-        S3Bucket: !Sub xcafockufhle-${AWS::Region}
+        S3Bucket: !Sub ${S3CodeBucket}-${AWS::Region}
         S3Key: lambda_workspaces_reaper.zip
-      Description:
-        Workspaces portal function to remove deleted Workspaces instances
-        from the DynamoDB table.
+      Description: Workspaces portal function to remove deleted Workspaces instances from the DynamoDB table.
       Handler: lambda_workspaces_reaper.lambda_handler
       Role: !GetAtt LambdaRole.Arn
       Runtime: python3.13
       Timeout: 300
       Environment:
         Variables:
-          DynamoDBTableName: !Ref DDBTable
+          DynamoDBTableName: !Ref DynamoDBTable
 
   LambdaListPermission:
     Type: AWS::Lambda::Permission
     DependsOn: APIGateway
     Properties:
-      Action: lambda:invokeFunction
+      Action: lambda:InvokeFunction
       FunctionName: !GetAtt LambdaFunctionListInstances.Arn
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${APIGateway}/*
@@ -231,7 +200,7 @@ Resources:
     Type: AWS::Lambda::Permission
     DependsOn: APIGateway
     Properties:
-      Action: lambda:invokeFunction
+      Action: lambda:InvokeFunction
       FunctionName: !GetAtt LambdaFunctionPortalActions.Arn
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${APIGateway}/*
@@ -240,7 +209,7 @@ Resources:
     Type: AWS::Events::Rule
     DependsOn: LambdaFunctionFindInstances
     Properties:
-      Name: !Sub WorkspacesDiscovery${UniqueSuffix}
+      Name: !Sub ${ClientName}-${ServiceName}-Discovery-${EnvironmentName}
       ScheduleExpression: rate(5 minutes)
       State: ENABLED
       Targets:
@@ -262,7 +231,7 @@ Resources:
     Type: AWS::Events::Rule
     DependsOn: LambdaFunctionPortalReaper
     Properties:
-      Name: !Sub WorkspacesReaper${UniqueSuffix}
+      Name: !Sub ${ClientName}-${ServiceName}-Reaper-${EnvironmentName}
       ScheduleExpression: rate(30 minutes)
       State: ENABLED
       Targets:
@@ -272,17 +241,17 @@ Resources:
   UserPool:
     Type: AWS::Cognito::UserPool
     Properties:
-      UserPoolName: !Sub WorkspacesPortal${UniqueSuffix}
+      UserPoolName: !Sub ${ClientName}-${ServiceName}-${EnvironmentName}
       Schema:
         - AttributeDataType: String
-          Name: ADGroups
+          Name: custom:ADGroups
           Mutable: true
 
   UserPoolAppClient:
     Type: AWS::Cognito::UserPoolClient
     Properties:
       UserPoolId: !Ref UserPool
-      ClientName: !Sub WorkspacesPortal${UniqueSuffix}
+      ClientName: !Sub ${ClientName}-${ServiceName}-${EnvironmentName}
       ExplicitAuthFlows:
         - ADMIN_NO_SRP_AUTH
       ReadAttributes:
@@ -293,7 +262,7 @@ Resources:
   APIGateway:
     Type: AWS::ApiGateway::RestApi
     Properties:
-      Name: !Sub WorkspacesPortal${UniqueSuffix}
+      Name: !Sub ${ClientName}-${ServiceName}-${EnvironmentName}
       FailOnWarnings: true
 
   APIGatewayStage:
@@ -316,6 +285,8 @@ Resources:
       - APIGateway
       - APIGWMethodAdmin
       - APIGWMethodUser
+      - APIGWOptionsMethodAdmin
+      - APIGWOptionsMethodUser
     Properties:
       RestApiId: !Ref APIGateway
 
@@ -348,13 +319,7 @@ Resources:
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Join
-          - ""
-          - - "arn:aws:apigateway:"
-            - !Ref AWS::Region
-            - ":lambda:path/2015-03-31/functions/"
-            - !GetAtt LambdaFunctionPortalActions.Arn
-            - /invocations
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionPortalActions.Arn}/invocations
         IntegrationResponses:
           - StatusCode: "200"
             ResponseTemplates:
@@ -366,7 +331,7 @@ Resources:
           ResponseModels:
             application/json: Empty
           ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Origin: true
 
   APIGWOptionsMethodAdmin:
     Type: AWS::ApiGateway::Method
@@ -391,9 +356,9 @@ Resources:
           ResponseModels:
             application/json: Empty
           ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Headers: false
-            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
 
   APIGatewayResourceUser:
     Type: AWS::ApiGateway::Resource
@@ -414,13 +379,7 @@ Resources:
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Join
-          - ""
-          - - "arn:aws:apigateway:"
-            - !Ref AWS::Region
-            - ":lambda:path/2015-03-31/functions/"
-            - !GetAtt LambdaFunctionListInstances.Arn
-            - /invocations
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionListInstances.Arn}/invocations
         IntegrationResponses:
           - StatusCode: "200"
             ResponseTemplates:
@@ -432,7 +391,7 @@ Resources:
           ResponseModels:
             application/json: Empty
           ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
+            method.response.header.Access-Control-Allow-Origin: true
 
   APIGWOptionsMethodUser:
     Type: AWS::ApiGateway::Method
@@ -457,6 +416,6 @@ Resources:
           ResponseModels:
             application/json: Empty
           ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: false
-            method.response.header.Access-Control-Allow-Headers: false
-            method.response.header.Access-Control-Allow-Methods: false
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
