@@ -111,7 +111,7 @@ Resources:
                 Effect: Allow
                 Resource: "*"
         - PolicyName: EC2Policy
-          PolicyPolicyDocument:
+          PolicyDocument:
             Version: 2012-10-17
             Statement:
               - Action:
