@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: 2010-09-09
 
-Description: >
+Description: |
   Template for the parts of the Workspaces portal that can be automated.
 
 Parameters:
@@ -23,11 +23,47 @@ Parameters:
 
 Outputs:
   APIGatewayId:
+    Description: The ID of the API Gateway
     Value: !Ref APIGateway
+  APIGatewayEndpoint:
+    Description: The endpoint URL for the API Gateway Prod stage
+    Value: !Sub https://${APIGateway}.execute-api.${AWS::Region}.amazonaws.com/Prod
   CognitoUserPoolId:
+    Description: The ID of the Cognito User Pool
     Value: !Ref UserPool
   CognitoUserPoolClientId:
+    Description: The ID of the Cognito User Pool Client
     Value: !Ref UserPoolAppClient
+  S3BucketName:
+    Description: The name of the S3 bucket hosting the web application
+    Value: !Ref S3Bucket
+  S3BucketArn:
+    Description: The ARN of the S3 bucket
+    Value: !GetAtt S3Bucket.Arn
+  DynamoDBTableName:
+    Description: The name of the DynamoDB table
+    Value: !Ref DynamoDBTable
+  DynamoDBTableArn:
+    Description: The ARN of the DynamoDB table
+    Value: !GetAtt DynamoDBTable.Arn
+  LambdaFindInstancesArn:
+    Description: The ARN of the Lambda function for finding instances
+    Value: !GetAtt LambdaFunctionFindInstances.Arn
+  LambdaPortalActionsArn:
+    Description: The ARN of the Lambda function for portal actions
+    Value: !GetAtt LambdaFunctionPortalActions.Arn
+  LambdaListInstancesArn:
+    Description: The ARN of the Lambda function for listing instances
+    Value: !GetAtt LambdaFunctionListInstances.Arn
+  LambdaPortalReaperArn:
+    Description: The ARN of the Lambda function for reaping instances
+    Value: !GetAtt LambdaFunctionPortalReaper.Arn
+  DiscoverEventArn:
+    Description: The ARN of the EventBridge rule for discovery
+    Value: !GetAtt DiscoverEvent.Arn
+  ReaperEventArn:
+    Description: The ARN of the EventBridge rule for reaping
+    Value: !GetAtt ReaperEvent.Arn
 
 Resources:
   S3Bucket:
@@ -52,7 +88,7 @@ Resources:
       PolicyDocument:
         Statement:
           - Action: s3:GetObject
-            Principal: "*"
+            Principal: '*'
             Effect: Allow
             Resource: !Sub arn:aws:s3:::${S3Bucket}/*
 
@@ -79,7 +115,7 @@ Resources:
               Service:
                 - lambda.amazonaws.com
             Action:
-            - sts:AssumeRole
+              - sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
@@ -109,7 +145,7 @@ Resources:
                   - workspaces:StartWorkspaces
                   - workspaces:DescribeWorkspacesConnectionStatus
                 Effect: Allow
-                Resource: "*"
+                Resource: '*'
         - PolicyName: EC2Policy
           PolicyDocument:
             Version: 2012-10-17
@@ -117,7 +153,7 @@ Resources:
               - Action:
                   - ec2:DescribeRegions
                 Effect: Allow
-                Resource: "*"
+                Resource: '*'
 
   LambdaFunctionFindInstances:
     Type: AWS::Lambda::Function
@@ -127,7 +163,8 @@ Resources:
       Code:
         S3Bucket: !Sub ${S3CodeBucket}-${AWS::Region}
         S3Key: lambda_workspaces_import.zip
-      Description: Workspaces portal function to find all Workspaces instances in all applicable regions.
+      Description: Workspaces portal function to find all Workspaces instances in all
+        applicable regions.
       Handler: lambda_workspaces_import.lambda_handler
       Role: !GetAtt LambdaRole.Arn
       Runtime: python3.13
@@ -161,7 +198,8 @@ Resources:
       Code:
         S3Bucket: !Sub ${S3CodeBucket}-${AWS::Region}
         S3Key: lambda_workspaces_list_instances.zip
-      Description: Workspaces portal function to return a list of Workspaces instances when called by API Gateway.
+      Description: Workspaces portal function to return a list of Workspaces instances
+        when called by API Gateway.
       Handler: lambda_workspaces_list_instances.lambda_handler
       Role: !GetAtt LambdaRole.Arn
       Runtime: python3.13
@@ -178,7 +216,8 @@ Resources:
       Code:
         S3Bucket: !Sub ${S3CodeBucket}-${AWS::Region}
         S3Key: lambda_workspaces_reaper.zip
-      Description: Workspaces portal function to remove deleted Workspaces instances from the DynamoDB table.
+      Description: Workspaces portal function to remove deleted Workspaces instances
+        from the DynamoDB table.
       Handler: lambda_workspaces_reaper.lambda_handler
       Role: !GetAtt LambdaRole.Arn
       Runtime: python3.13
@@ -321,13 +360,13 @@ Resources:
         IntegrationHttpMethod: POST
         Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionPortalActions.Arn}/invocations
         IntegrationResponses:
-          - StatusCode: "200"
+          - StatusCode: '200'
             ResponseTemplates:
-              application/json: ""
+              application/json: ''
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Origin: '''*'''
       MethodResponses:
-        - StatusCode: "200"
+        - StatusCode: '200'
           ResponseModels:
             application/json: Empty
           ResponseParameters:
@@ -343,16 +382,16 @@ Resources:
       Integration:
         Type: MOCK
         IntegrationResponses:
-          - StatusCode: "200"
+          - StatusCode: '200'
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'''
+              method.response.header.Access-Control-Allow-Methods: '''GET,OPTIONS'''
+              method.response.header.Access-Control-Allow-Origin: '''*'''
         PassthroughBehavior: WHEN_NO_MATCH
         RequestTemplates:
-          application/json: "{'statusCode': 200}"
+          application/json: '{''statusCode'': 200}'
       MethodResponses:
-        - StatusCode: "200"
+        - StatusCode: '200'
           ResponseModels:
             application/json: Empty
           ResponseParameters:
@@ -381,13 +420,13 @@ Resources:
         IntegrationHttpMethod: POST
         Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionListInstances.Arn}/invocations
         IntegrationResponses:
-          - StatusCode: "200"
+          - StatusCode: '200'
             ResponseTemplates:
-              application/json: ""
+              application/json: ''
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Origin: '''*'''
       MethodResponses:
-        - StatusCode: "200"
+        - StatusCode: '200'
           ResponseModels:
             application/json: Empty
           ResponseParameters:
@@ -403,16 +442,16 @@ Resources:
       Integration:
         Type: MOCK
         IntegrationResponses:
-          - StatusCode: "200"
+          - StatusCode: '200'
             ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Headers: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'''
+              method.response.header.Access-Control-Allow-Methods: '''GET,OPTIONS'''
+              method.response.header.Access-Control-Allow-Origin: '''*'''
         PassthroughBehavior: WHEN_NO_MATCH
         RequestTemplates:
-          application/json: "{'statusCode': 200}"
+          application/json: '{''statusCode'': 200}'
       MethodResponses:
-        - StatusCode: "200"
+        - StatusCode: '200'
           ResponseModels:
             application/json: Empty
           ResponseParameters:
